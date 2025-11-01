@@ -1,0 +1,233 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  name              String?
+  phone             String?  @unique
+  password          String?
+  isVerified        Boolean  @default(false)
+  isPremium         Boolean  @default(false)
+  premiumExpiresAt  DateTime?
+  upiId             String?  @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  bankAccounts      BankAccount[]
+  transactions      Transaction[]
+  roundUpSettings   RoundUpSettings?
+  savingsGoals      SavingsGoal[]
+  investments       Investment[]
+  portfolio         Portfolio?
+  kyc               KYC?
+  notifications     Notification[]
+  badges            UserBadge[]
+  referrals         Referral[] @relation("ReferrerUser")
+  referredBy        Referral? @relation("ReferredUser")
+  
+  @@map("users")
+}
+
+model BankAccount {
+  id              String   @id @default(cuid())
+  userId          String
+  bankName        String
+  accountNumber   String
+  ifscCode        String
+  accountType     String   // "savings", "current"
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions    Transaction[]
+  
+  @@map("bank_accounts")
+}
+
+model Transaction {
+  id              String   @id @default(cuid())
+  userId          String
+  bankAccountId   String?
+  amount          Float
+  roundedAmount   Float
+  roundUpAmount   Float
+  description     String?
+  category        String?  // "dining", "shopping", "utilities", "rent", etc.
+  merchantName    String?
+  transactionDate DateTime
+  isProcessed     Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bankAccount     BankAccount?  @relation(fields: [bankAccountId], references: [id])
+  
+  @@map("transactions")
+}
+
+model RoundUpSettings {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  roundingRule    String   @default("nearest_10") // "nearest_1", "nearest_5", "nearest_10"
+  maxDailyAmount  Float    @default(100.0)
+  isActive        Boolean  @default(true)
+  skipCategories  String   // JSON array of categories to skip
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("round_up_settings")
+}
+
+model SavingsGoal {
+  id              String   @id @default(cuid())
+  userId          String
+  name            String
+  targetAmount    Float
+  currentAmount   Float    @default(0.0)
+  targetDate      DateTime?
+  category        String   // "emergency", "laptop", "vacation", "education", etc.
+  allocation      String   // JSON object with asset allocation percentages
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  investments     Investment[]
+  
+  @@map("savings_goals")
+}
+
+model Investment {
+  id              String   @id @default(cuid())
+  userId          String
+  savingsGoalId   String?
+  assetType       String   // "liquid_fund", "equity_fund", "digital_gold", "impact_fund"
+  assetName       String
+  amount          Float
+  units           Float?
+  purchasePrice   Float
+  currentPrice    Float?
+  currentValue    Float?
+  purchaseDate    DateTime
+  isRedeemed      Boolean  @default(false)
+  redemptionDate  DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  savingsGoal     SavingsGoal? @relation(fields: [savingsGoalId], references: [id])
+  
+  @@map("investments")
+}
+
+model Portfolio {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  totalInvested   Float    @default(0.0)
+  currentValue    Float    @default(0.0)
+  totalReturns    Float    @default(0.0)
+  returnPercentage Float    @default(0.0)
+  lastUpdated     DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("portfolios")
+}
+
+model KYC {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  aadhaarNumber   String?
+  panNumber       String?
+  fullName        String?
+  dateOfBirth     DateTime?
+  address         String?
+  isVerified      Boolean  @default(false)
+  verificationDate DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("kyc_records")
+}
+
+model Notification {
+  id              String   @id @default(cuid())
+  userId          String
+  title           String
+  message         String
+  type            String   // "info", "success", "warning", "error"
+  isRead          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("notifications")
+}
+
+model Badge {
+  id              String   @id @default(cuid())
+  name            String   @unique
+  description     String
+  icon            String?
+  category        String   // "saving", "investing", "social", "achievement"
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  userBadges      UserBadge[]
+  
+  @@map("badges")
+}
+
+model UserBadge {
+  id              String   @id @default(cuid())
+  userId          String
+  badgeId         String
+  earnedAt        DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge           Badge    @relation(fields: [badgeId], references: [id])
+  
+  @@unique([userId, badgeId])
+  @@map("user_badges")
+}
+
+model Referral {
+  id              String   @id @default(cuid())
+  referrerUserId  String
+  referredUserId  String   @unique
+  referralCode    String
+  status          String   @default("pending") // "pending", "completed", "failed"
+  rewardAmount    Float    @default(0.0)
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  referrerUser    User     @relation("ReferrerUser", fields: [referrerUserId], references: [id], onDelete: Cascade)
+  referredUser    User     @relation("ReferredUser", fields: [referredUserId], references: [id], onDelete: Cascade)
+  
+  @@map("referrals")
+}
